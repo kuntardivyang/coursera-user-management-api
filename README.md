@@ -1,7 +1,14 @@
 # UserManagementAPI
 
 CRUD Web API for TechHive Solutions' internal HR & IT user records.
-Built with ASP.NET Core 8 (controllers + Swagger), in-memory storage.
+Built with ASP.NET Core 8 (controllers + Swagger), in-memory storage,
+custom middleware for token authentication, request logging, and
+consistent error responses.
+
+> Coursera back-end capstone. Three activities are documented in
+> [`COPILOT_NOTES.md`](./COPILOT_NOTES.md),
+> [`DEBUGGING_NOTES.md`](./DEBUGGING_NOTES.md), and
+> [`MIDDLEWARE_NOTES.md`](./MIDDLEWARE_NOTES.md).
 
 ## Prerequisites
 
@@ -20,9 +27,10 @@ export PATH="$HOME/.dotnet:$PATH"
 ## Run
 
 ```bash
-cd UserManagementAPI
+git clone https://github.com/kuntardivyang/coursera-user-management-api.git
+cd coursera-user-management-api
 dotnet restore
-dotnet run
+dotnet run --launch-profile http
 ```
 
 Then open Swagger UI: <http://localhost:5080/swagger>
@@ -55,27 +63,33 @@ sample requests.
 | POST   | `/api/users`                        | Create a new user                  |
 | PUT    | `/api/users/{id}`                   | Update an existing user            |
 | DELETE | `/api/users/{id}`                   | Delete a user by id                |
+| GET    | `/api/diagnostics/throw`            | Forced exception (Development only) |
 
 `pageSize` is capped at 100. Defaults: `page=1`, `pageSize=20`. Response shape
 for the list endpoint is `PagedResult<User>` (`page`, `pageSize`, `totalCount`,
 `totalPages`, `items`).
 
 Validation is enforced via data annotations (required, email format, length
-limits, custom `NotWhitespace`). All error responses use RFC 7807
-`ProblemDetails` / `ValidationProblemDetails`. Status codes:
+limits, custom `NotWhitespace`). Status codes:
 
 - `400 Bad Request` — invalid body, bad query params, non-positive id
+- `401 Unauthorized` — missing / wrong-scheme / wrong token (`{"error":"Unauthorized."}`)
 - `404 Not Found` — unknown user id
 - `409 Conflict` — duplicate email (atomically enforced under concurrent writes)
-- `500 Internal Server Error` — caught by `GlobalExceptionHandler`, response is ProblemDetails (no stack trace in Production)
+- `500 Internal Server Error` — caught by `ErrorHandlingMiddleware` (`{"error":"Internal server error."}`)
 - `201 Created` (with `Location` header) on successful POST
 - `204 No Content` on successful DELETE
+
+CRUD validation errors use RFC 7807 `ValidationProblemDetails` /
+`ProblemDetails`; the auth and global-error middleware return the simpler
+`{"error": "..."}` shape required by the activity brief.
 
 ## Testing with Postman / `.http`
 
 The repo includes `UserManagementAPI.http` with sample requests for VS Code
-REST Client / Rider. For Postman, import the same routes manually or use the
-Swagger UI to generate calls.
+REST Client / Rider, including auth-failure cases and the forced-exception
+endpoint. For Postman, import the same routes manually or use the Swagger UI
+to generate calls.
 
 Example POST body:
 
@@ -92,7 +106,7 @@ Example POST body:
 ## Project layout
 
 ```
-UserManagementAPI/
+.
 ├── Controllers/
 │   ├── UsersController.cs                # CRUD endpoints
 │   └── DiagnosticsController.cs          # Dev-only forced-exception endpoint
@@ -107,14 +121,18 @@ UserManagementAPI/
 │   ├── IUserService.cs                   # Storage contract
 │   └── InMemoryUserService.cs            # Thread-safe in-memory store
 ├── Validation/NotWhitespaceAttribute.cs  # Custom validator
-├── Program.cs                            # Bootstrap, DI, Swagger, middleware pipeline
-├── appsettings*.json                     # Logging + Auth config
 ├── Properties/launchSettings.json        # Local run profiles
+├── Program.cs                            # Bootstrap, DI, Swagger, middleware pipeline
+├── appsettings.json                      # Base config (placeholder token)
+├── appsettings.Development.json          # Dev overrides (real dev token)
 ├── UserManagementAPI.http                # Sample + middleware test requests
-└── UserManagementAPI.csproj
+├── UserManagementAPI.csproj
+├── COPILOT_NOTES.md                      # Activity 1 deliverable
+├── DEBUGGING_NOTES.md                    # Activity 2 deliverable
+└── MIDDLEWARE_NOTES.md                   # Activity 3 deliverable
 ```
 
-## See also
+## Activity deliverables
 
 - [`COPILOT_NOTES.md`](./COPILOT_NOTES.md) — how Copilot helped scaffold the API (activity 1).
 - [`DEBUGGING_NOTES.md`](./DEBUGGING_NOTES.md) — bugs caught and fixes applied (activity 2).
