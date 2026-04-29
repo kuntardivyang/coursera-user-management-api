@@ -1,0 +1,36 @@
+@host = http://localhost:5080
+
+### List all users
+GET {{host}}/api/users
+Accept: application/json
+
+### Get user by id
+GET {{host}}/api/users/1
+Accept: application/json
+
+### Create a user
+POST {{host}}/api/users
+Content-Type: application/json
+
+{
+  "firstName": "Priya",
+  "lastName": "Singh",
+  "email": "priya.singh@techhive.example",
+  "department": "HR",
+  "role": "Recruiter"
+}
+
+### Update a user
+PUT {{host}}/api/users/1
+Content-Type: application/json
+
+{
+  "firstName": "Asha",
+  "lastName": "Patel",
+  "email": "asha.patel@techhive.example",
+  "department": "HR",
+  "role": "Director"
+}
+
+### Delete a user
+DELETE {{host}}/api/users/2
