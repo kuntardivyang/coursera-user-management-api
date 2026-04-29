@@ -4,10 +4,20 @@ namespace UserManagementAPI.Services;
 
 public interface IUserService
 {
-    IEnumerable<User> GetAll();
+    PagedResult<User> GetPaged(int page, int pageSize);
     User? GetById(int id);
-    User Create(CreateUserRequest request);
-    User? Update(int id, UpdateUserRequest request);
+
+    /// <summary>
+    /// Creates a user atomically with respect to email uniqueness.
+    /// Returns null if the email is already in use.
+    /// </summary>
+    User? TryCreate(CreateUserRequest request);
+
+    /// <summary>
+    /// Updates a user atomically with respect to email uniqueness.
+    /// Returns (null, false) if the user does not exist; (null, true) if email collides.
+    /// </summary>
+    (User? Updated, bool EmailConflict) TryUpdate(int id, UpdateUserRequest request);
+
     bool Delete(int id);
-    bool EmailExists(string email, int? excludeId = null);
 }

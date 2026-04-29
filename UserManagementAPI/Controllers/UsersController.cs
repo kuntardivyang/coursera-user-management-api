@@ -9,6 +9,9 @@ namespace UserManagementAPI.Controllers;
 [Produces("application/json")]
 public class UsersController : ControllerBase
 {
+    private const int DefaultPageSize = 20;
+    private const int MaxPageSize = 100;
+
     private readonly IUserService _users;
     private readonly ILogger<UsersController> _logger;
 
@@ -19,70 +22,111 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<User>), StatusCodes.Status200OK)]
-    public ActionResult<IEnumerable<User>> GetAll() => Ok(_users.GetAll());
+    [ProducesResponseType(typeof(PagedResult<User>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public ActionResult<PagedResult<User>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = DefaultPageSize)
+    {
+        if (page < 1)
+        {
+            return ValidationProblem("page must be >= 1.");
+        }
+        if (pageSize < 1 || pageSize > MaxPageSize)
+        {
+            return ValidationProblem($"pageSize must be between 1 and {MaxPageSize}.");
+        }
+
+        return Ok(_users.GetPaged(page, pageSize));
+    }
 
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(User), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public ActionResult<User> GetById(int id)
     {
+        if (id <= 0)
+        {
+            return ValidationProblem("id must be a positive integer.");
+        }
+
         var user = _users.GetById(id);
         if (user is null)
         {
-            return NotFound(new { message = $"User {id} not found." });
+            _logger.LogInformation("Lookup miss for user {UserId}", id);
+            return NotFoundProblem($"User {id} not found.");
         }
         return Ok(user);
     }
 
     [HttpPost]
     [ProducesResponseType(typeof(User), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public ActionResult<User> Create([FromBody] CreateUserRequest request)
     {
-        if (_users.EmailExists(request.Email))
+        var created = _users.TryCreate(request);
+        if (created is null)
         {
-            return Conflict(new { message = $"Email '{request.Email}' is already in use." });
+            return ConflictProblem($"Email '{request.Email.Trim()}' is already in use.");
         }
 
-        var created = _users.Create(request);
         _logger.LogInformation("Created user {UserId} ({Email})", created.Id, created.Email);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
     [HttpPut("{id:int}")]
     [ProducesResponseType(typeof(User), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public ActionResult<User> Update(int id, [FromBody] UpdateUserRequest request)
     {
-        if (_users.GetById(id) is null)
+        if (id <= 0)
         {
-            return NotFound(new { message = $"User {id} not found." });
+            return ValidationProblem("id must be a positive integer.");
         }
 
-        if (_users.EmailExists(request.Email, excludeId: id))
+        var (updated, emailConflict) = _users.TryUpdate(id, request);
+        if (updated is null && emailConflict)
         {
-            return Conflict(new { message = $"Email '{request.Email}' is already in use by another user." });
+            return ConflictProblem($"Email '{request.Email.Trim()}' is already in use by another user.");
+        }
+        if (updated is null)
+        {
+            return NotFoundProblem($"User {id} not found.");
         }
 
-        var updated = _users.Update(id, request);
         _logger.LogInformation("Updated user {UserId}", id);
         return Ok(updated);
     }
 
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public IActionResult Delete(int id)
     {
+        if (id <= 0)
+        {
+            return ValidationProblem("id must be a positive integer.");
+        }
+
         if (!_users.Delete(id))
         {
-            return NotFound(new { message = $"User {id} not found." });
+            return NotFoundProblem($"User {id} not found.");
         }
         _logger.LogInformation("Deleted user {UserId}", id);
         return NoContent();
     }
+
+    private ObjectResult ValidationProblem(string detail) =>
+        Problem(detail: detail, statusCode: StatusCodes.Status400BadRequest, title: "Invalid request.");
+
+    private ObjectResult NotFoundProblem(string detail) =>
+        Problem(detail: detail, statusCode: StatusCodes.Status404NotFound, title: "Resource not found.");
+
+    private ObjectResult ConflictProblem(string detail) =>
+        Problem(detail: detail, statusCode: StatusCodes.Status409Conflict, title: "Conflict.");
 }

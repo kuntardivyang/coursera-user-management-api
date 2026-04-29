@@ -29,20 +29,26 @@ Then open Swagger UI: <http://localhost:5080/swagger>
 
 ## Endpoints
 
-| Method | Route             | Purpose                          |
-| ------ | ----------------- | -------------------------------- |
-| GET    | `/api/users`      | List all users                   |
-| GET    | `/api/users/{id}` | Get a single user by id          |
-| POST   | `/api/users`      | Create a new user                |
-| PUT    | `/api/users/{id}` | Update an existing user          |
-| DELETE | `/api/users/{id}` | Delete a user by id              |
+| Method | Route                               | Purpose                            |
+| ------ | ----------------------------------- | ---------------------------------- |
+| GET    | `/api/users?page=1&pageSize=20`     | List users, paginated              |
+| GET    | `/api/users/{id}`                   | Get a single user by id            |
+| POST   | `/api/users`                        | Create a new user                  |
+| PUT    | `/api/users/{id}`                   | Update an existing user            |
+| DELETE | `/api/users/{id}`                   | Delete a user by id                |
 
-The API validates request bodies via data annotations (required fields, email
-format, length limits) and returns:
+`pageSize` is capped at 100. Defaults: `page=1`, `pageSize=20`. Response shape
+for the list endpoint is `PagedResult<User>` (`page`, `pageSize`, `totalCount`,
+`totalPages`, `items`).
 
-- `400 Bad Request` for invalid input (handled by `[ApiController]`)
-- `404 Not Found` when the user id does not exist
-- `409 Conflict` when an email collides with another user
+Validation is enforced via data annotations (required, email format, length
+limits, custom `NotWhitespace`). All error responses use RFC 7807
+`ProblemDetails` / `ValidationProblemDetails`. Status codes:
+
+- `400 Bad Request` — invalid body, bad query params, non-positive id
+- `404 Not Found` — unknown user id
+- `409 Conflict` — duplicate email (atomically enforced under concurrent writes)
+- `500 Internal Server Error` — caught by `GlobalExceptionHandler`, response is ProblemDetails (no stack trace in Production)
 - `201 Created` (with `Location` header) on successful POST
 - `204 No Content` on successful DELETE
 
@@ -68,18 +74,21 @@ Example POST body:
 
 ```
 UserManagementAPI/
-├── Controllers/UsersController.cs   # CRUD endpoints
-├── Models/User.cs                   # User entity + request DTOs
-├── Services/IUserService.cs         # Storage contract
-├── Services/InMemoryUserService.cs  # Thread-safe in-memory store
-├── Program.cs                       # Bootstrap, DI, Swagger
-├── appsettings*.json                # Logging config
-├── Properties/launchSettings.json   # Local run profiles
-├── UserManagementAPI.http           # Sample requests
+├── Controllers/UsersController.cs        # CRUD endpoints
+├── Middleware/GlobalExceptionHandler.cs  # IExceptionHandler → ProblemDetails
+├── Models/User.cs                        # User entity + request DTOs
+├── Models/PagedResult.cs                 # Pagination envelope
+├── Services/IUserService.cs              # Storage contract
+├── Services/InMemoryUserService.cs       # Thread-safe in-memory store
+├── Validation/NotWhitespaceAttribute.cs  # Custom validator
+├── Program.cs                            # Bootstrap, DI, Swagger, error handler
+├── appsettings*.json                     # Logging config
+├── Properties/launchSettings.json        # Local run profiles
+├── UserManagementAPI.http                # Sample + edge-case requests
 └── UserManagementAPI.csproj
 ```
 
 ## See also
 
-- [`COPILOT_NOTES.md`](./COPILOT_NOTES.md) — how Copilot contributed to this
-  scaffold (required deliverable for the activity).
+- [`COPILOT_NOTES.md`](./COPILOT_NOTES.md) — how Copilot helped scaffold the API (activity 1).
+- [`DEBUGGING_NOTES.md`](./DEBUGGING_NOTES.md) — bugs caught and fixes applied (activity 2).

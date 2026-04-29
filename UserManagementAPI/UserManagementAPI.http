@@ -1,7 +1,9 @@
 @host = http://localhost:5080
 
-### List all users
-GET {{host}}/api/users
+### --- Happy path -----------------------------------------------------------
+
+### List users (paginated)
+GET {{host}}/api/users?page=1&pageSize=20
 Accept: application/json
 
 ### Get user by id
@@ -34,3 +36,72 @@ Content-Type: application/json
 
 ### Delete a user
 DELETE {{host}}/api/users/2
+
+### --- Edge cases for the debug pass ----------------------------------------
+
+### Whitespace-only first name → 400 (caught by [NotWhitespace])
+POST {{host}}/api/users
+Content-Type: application/json
+
+{
+  "firstName": "   ",
+  "lastName": "Doe",
+  "email": "blank.first@techhive.example",
+  "department": "IT",
+  "role": "Tester"
+}
+
+### Invalid email → 400 (caught by [EmailAddress])
+POST {{host}}/api/users
+Content-Type: application/json
+
+{
+  "firstName": "Bad",
+  "lastName": "Email",
+  "email": "not-an-email",
+  "department": "IT",
+  "role": "Tester"
+}
+
+### Duplicate email → 409 (uniqueness enforced atomically by service)
+POST {{host}}/api/users
+Content-Type: application/json
+
+{
+  "firstName": "Asha",
+  "lastName": "Patel",
+  "email": "asha.patel@techhive.example",
+  "department": "HR",
+  "role": "Manager"
+}
+
+### Get non-existent user → 404 ProblemDetails (no crash)
+GET {{host}}/api/users/9999
+Accept: application/json
+
+### Bad id (negative) → 400 ProblemDetails
+GET {{host}}/api/users/-1
+Accept: application/json
+
+### Page out of range → 400 ProblemDetails
+GET {{host}}/api/users?page=0&pageSize=20
+Accept: application/json
+
+### Page size too large → 400 ProblemDetails (cap is 100)
+GET {{host}}/api/users?page=1&pageSize=999
+Accept: application/json
+
+### Update non-existent user → 404 ProblemDetails
+PUT {{host}}/api/users/9999
+Content-Type: application/json
+
+{
+  "firstName": "Ghost",
+  "lastName": "User",
+  "email": "ghost@techhive.example",
+  "department": "IT",
+  "role": "Engineer"
+}
+
+### Delete non-existent user → 404 ProblemDetails
+DELETE {{host}}/api/users/9999

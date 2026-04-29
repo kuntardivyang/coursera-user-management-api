@@ -1,4 +1,5 @@
 using Microsoft.OpenApi.Models;
+using UserManagementAPI.Middleware;
 using UserManagementAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,7 +18,14 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddSingleton<IUserService, InMemoryUserService>();
 
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
 var app = builder.Build();
+
+// Order matters: ExceptionHandler must run first so it can catch downstream throws.
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 if (app.Environment.IsDevelopment())
 {
@@ -28,8 +36,12 @@ if (app.Environment.IsDevelopment())
         options.RoutePrefix = "swagger";
     });
 }
+else
+{
+    // Avoid HTTPS redirect in Development so Postman/curl over plain http://localhost:5080 just works.
+    app.UseHttpsRedirection();
+}
 
-app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
