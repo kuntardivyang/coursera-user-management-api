@@ -27,6 +27,25 @@ dotnet run
 
 Then open Swagger UI: <http://localhost:5080/swagger>
 
+## Authentication
+
+Every endpoint except `/swagger/*` requires an `Authorization: Bearer <token>`
+header. The token is read from `Auth:ApiToken`:
+
+- **Development**: pre-set to `dev-techhive-token-12345` in `appsettings.Development.json`.
+- **Production**: must be supplied via env var `Auth__ApiToken` or a secrets store.
+  The placeholder in `appsettings.json` is intentionally invalid.
+
+Example:
+
+```bash
+curl -H "Authorization: Bearer dev-techhive-token-12345" \
+     http://localhost:5080/api/users
+```
+
+In Swagger UI, click **Authorize** and paste the token to attach it to all
+sample requests.
+
 ## Endpoints
 
 | Method | Route                               | Purpose                            |
@@ -74,17 +93,24 @@ Example POST body:
 
 ```
 UserManagementAPI/
-├── Controllers/UsersController.cs        # CRUD endpoints
-├── Middleware/GlobalExceptionHandler.cs  # IExceptionHandler → ProblemDetails
-├── Models/User.cs                        # User entity + request DTOs
-├── Models/PagedResult.cs                 # Pagination envelope
-├── Services/IUserService.cs              # Storage contract
-├── Services/InMemoryUserService.cs       # Thread-safe in-memory store
+├── Controllers/
+│   ├── UsersController.cs                # CRUD endpoints
+│   └── DiagnosticsController.cs          # Dev-only forced-exception endpoint
+├── Middleware/
+│   ├── ErrorHandlingMiddleware.cs        # try/catch → JSON 500
+│   ├── TokenAuthenticationMiddleware.cs  # Bearer-token gate
+│   └── RequestLoggingMiddleware.cs       # method/path/status/elapsed logs
+├── Models/
+│   ├── User.cs                           # User entity + request DTOs
+│   └── PagedResult.cs                    # Pagination envelope
+├── Services/
+│   ├── IUserService.cs                   # Storage contract
+│   └── InMemoryUserService.cs            # Thread-safe in-memory store
 ├── Validation/NotWhitespaceAttribute.cs  # Custom validator
-├── Program.cs                            # Bootstrap, DI, Swagger, error handler
-├── appsettings*.json                     # Logging config
+├── Program.cs                            # Bootstrap, DI, Swagger, middleware pipeline
+├── appsettings*.json                     # Logging + Auth config
 ├── Properties/launchSettings.json        # Local run profiles
-├── UserManagementAPI.http                # Sample + edge-case requests
+├── UserManagementAPI.http                # Sample + middleware test requests
 └── UserManagementAPI.csproj
 ```
 
@@ -92,3 +118,4 @@ UserManagementAPI/
 
 - [`COPILOT_NOTES.md`](./COPILOT_NOTES.md) — how Copilot helped scaffold the API (activity 1).
 - [`DEBUGGING_NOTES.md`](./DEBUGGING_NOTES.md) — bugs caught and fixes applied (activity 2).
+- [`MIDDLEWARE_NOTES.md`](./MIDDLEWARE_NOTES.md) — middleware pipeline (logging, error, auth) for activity 3.

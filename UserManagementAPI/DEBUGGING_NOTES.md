@@ -39,13 +39,12 @@ same email (e.g. with `hey -n 50 -c 25` or `xargs -P`). Exactly one returns
 generic 500 response with either an empty body (Production) or a raw
 stack trace (Development) — neither machine-parseable nor safe.
 
-**Fix.** Added `Middleware/GlobalExceptionHandler.cs` implementing
-`IExceptionHandler` (the .NET 8 way). Registered with
-`AddExceptionHandler<GlobalExceptionHandler>()` and `AddProblemDetails()`,
-wired in via `app.UseExceptionHandler()` *before* other middleware so it
-catches everything downstream. The handler logs the exception with method +
-path, then returns RFC 7807 `application/problem+json`. The exception
-message is included only in Development.
+**Fix.** Added a global exception handler that logs the exception with
+method + path and returns a structured JSON 500. The activity-2 cut used
+`IExceptionHandler` + `ProblemDetails`; activity 3 superseded this with a
+classic `ErrorHandlingMiddleware` returning `{"error":"Internal server error."}`
+to match the brief literally. Behavior is equivalent for clients —
+see `MIDDLEWARE_NOTES.md`.
 
 **Repro / verify.** Temporarily throw inside any controller action — the
 client receives a structured `ProblemDetails` 500, the server logs an
