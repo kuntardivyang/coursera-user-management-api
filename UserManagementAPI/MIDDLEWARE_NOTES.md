@@ -114,12 +114,22 @@ info: HTTP GET /api/users responded 200 in 4ms
 And for a forced exception:
 
 ```
-warn: <none — auth passed>
 info: HTTP GET /api/diagnostics/throw started
+info: HTTP GET /api/diagnostics/throw responded 200 in 9ms
 fail: Unhandled exception on GET /api/diagnostics/throw
       System.InvalidOperationException: Intentional test exception ...
-info: HTTP GET /api/diagnostics/throw responded 500 in 7ms
 ```
+
+> **Caveat — observed during live testing.** With logging registered
+> innermost (per the activity brief), the logging `finally` runs *before*
+> the error middleware's `catch`. By that point the controller has thrown
+> but no status code has been written, so `context.Response.StatusCode`
+> still reads `200`. The client correctly receives `500` from the error
+> middleware, but the request log line shows `200`. Inverting the order
+> (logging outermost: `error → logging → auth`) would let logging observe
+> the final status set by the error handler. Either swap the registrations
+> or add an explicit `try/catch` inside `RequestLoggingMiddleware` if you
+> need accurate status logging on exception paths.
 
 ## How Copilot helped
 
